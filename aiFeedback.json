@@ -1,0 +1,92 @@
+{
+  "good": 1,
+  "bad": 4,
+  "history": [
+    {
+      "type": "bad",
+      "reason": "wrong architecture",
+      "severity": "medium",
+      "fix": "rewrite using Rustline bot.js format",
+      "notes": "too generic discord bot code",
+      "time": "2026-07-17T21:27:38.058Z"
+    }
+  ],
+  "packets": [
+    {
+      "type": "BAD",
+      "reason": "\"wrong architecture for Rustline bot\"",
+      "severity": "high",
+      "faults": [
+        "faults: ["
+      ],
+      "fix": "\"generate JS code that plugs directly into Rustline bot.js using msg.reply or .txt output\"",
+      "avoid": [
+        "avoid: ["
+      ],
+      "rewrite_mode": "strict",
+      "example": "\"Rustline AI should output a JS snippet that can be executed via !ai, not a modular slash command file.\"",
+      "memory_tags": [
+        "memory_tags: ["
+      ],
+      "weight": -1,
+      "timestamp": "2026-07-17T21:40:52.380Z"
+    },
+    {
+      "type": "BAD",
+      "reason": "\"incorrect architecture for Rustline bot\"",
+      "severity": "high",
+      "faults": [
+        "faults: ["
+      ],
+      "fix": "\"generate JS code that Rustline can execute directly via !ai, using msg.reply or .txt output\"",
+      "avoid": [
+        "avoid: ["
+      ],
+      "rewrite_mode": "strict",
+      "example": "\"Rustline AI should output a JS snippet that can be run inside bot.js, not a modular slash command file.\"",
+      "memory_tags": [
+        "memory_tags: ["
+      ],
+      "weight": -1,
+      "timestamp": "2026-07-17T21:42:15.613Z"
+    },
+    {
+      "type": "BAD",
+      "reason": "\"incorrect Rust Console Edition logic and incorrect Rustline architecture\"",
+      "severity": "critical",
+      "faults": [
+        "faults: ["
+      ],
+      "fix": "\"generate a Rustline-compatible JS snippet that sends a valid WebRCON JSON command using ws.send(JSON.stringify({ Identifier, Message, Name ))\"",
+      "avoid": [
+        "avoid: ["
+      ],
+      "rewrite_mode": "strict",
+      "example": "\"Use ws.send(JSON.stringify({ Identifier",
+      "memory_tags": [
+        "memory_tags: ["
+      ],
+      "weight": -1,
+      "timestamp": "2026-07-17T21:47:14.411Z"
+    },
+    {
+      "type": "GOOD",
+      "reason": "user marked response as good",
+      "strengths": [
+        "accepted"
+      ],
+      "reinforce": {
+        "style": "current",
+        "patterns": [
+          "continue"
+        ],
+        "architecture": "rustline_js"
+      },
+      "memory_tags": [
+        "good_response"
+      ],
+      "weight": 1,
+      "timestamp": "2026-07-17T21:58:25.997Z"
+    }
+  ]
+}

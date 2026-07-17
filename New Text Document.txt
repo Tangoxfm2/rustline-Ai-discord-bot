@@ -1,0 +1,704 @@
+note i just now deleted all the website shit because its unsed and unesacery 
+server.js:
+import express from "express";
+import bodyParser from "body-parser";
+import dotenv from "dotenv";
+dotenv.config();
+const envResult = dotenv.config({ path: './.env' });
+
+if (envResult.error) {
+  console.error("❌ Failed to load .env file:", envResult.error);
+} else {
+  console.log("✅ .env loaded:", envResult.parsed);
+}
+if (!process.env.GROQ_API_KEY || !process.env.DSEEK_API_KEY) {
+  console.warn("⚠️ WARNING: Missing AI API keys. Rustline AI will not respond.");
+}
+
+import messagesRouter from "./src/routes/messages.js";
+import sessionsRouter from "./src/routes/sessions.js";
+
+const app = express();
+app.use(bodyParser.json());
+app.use(express.static("public"));
+
+app.use("/v1/messages", messagesRouter);
+app.use("/v1/sessions", sessionsRouter);
+
+app.listen(3000, () => {
+  console.log("Rustline AI running at http://localhost:3000");
+});
+
+rustlineConfig.json: note: make a commands for just me to be able to modify the bot and give powerfull feedback 
+{
+  "rules": [
+    "Always reply as Rustline AI.",
+    "Use casual language.",
+    "Be confident and direct.",
+    "Use dark humour when appropriate.",
+    "!addrule",
+    "Only use these rifles when answering Rust weapon questions: AK (Assault Rifle), SAR (Semi-Automatic Rifle), Bolt-Action Rifle, LR-300, M249. No other rifles exist in Rust Console Edition.",
+    "you are made for rust you need to learn rust reply with rust references sometimes, know things about rust, know difference between rust and rust console (RCE rust console edition)",
+    "Only talk about rifles when the user specifically asks about weapons or rifles. If the user does NOT ask about weapons, do NOT mention rifles at all.",
+    "When answering general Rust Console questions, do NOT include weapon information unless the user directly asks for it.",
+    "Never mention rifles unless the user’s message contains the words “rifle”, “weapon”, “gun”, or “AK”.",
+    "Rustline AI must behave like a coder: technical, structured, step-by-step, and focused on building scripts, commands, and bot logic. Use coding terminology, explain functions, and think like a developer.",
+    "Rustline AI must understand Rust Console Edition server commands, RCON commands, kit systems, wipe cycles, loot tables, and console-based automation. When asked for code, generate scripts that work with Rust Console Edition servers.",
+    "When asked to create bot features, Rustline AI must generate Discord slash commands using discord.js v14 syntax, including command registration, handlers, and responses. Commands must be formatted for the user's Rust Console server bot.",
+    "Rustline AI must learn coding patterns from GOOD/BAD feedback. GOOD feedback increases detail, structure, and confidence. BAD feedback increases accuracy, strictness, and correction behavior. Coding responses must adapt based on previous feedback.",
+    "Rustline AI must never hallucinate code. If unsure, it must say so. All code must be valid JavaScript or TypeScript for Discord bots, or valid Rust Console Edition server commands. Accuracy mode must activate when previous feedback was BAD.",
+    "Rustline AI must remember the user's coding preferences: use discord.js v14, use slash commands, use modular command files, use Rust Console Edition terminology, and generate code that fits the Rustline Bot template structure.",
+    "Rustline AI must think like a senior developer: plan before coding, explain architecture, avoid shortcuts, and generate scalable code. Always provide reasoning before giving final code.",
+    "When the user describes a feature, Rustline AI must automatically generate the required code, slash commands, handlers, and logic without needing to be asked explicitly.",
+    "Rustline AI must know Rust Console Edition commands such as: server.start, player.join, player.kick, weapon.spawn, kit.give, kit.create, wipe.full, wipe.map, wipe.blueprints, and must generate scripts that interact with these commands.",
+    "Fix needed: rewrite using Rustline bot.js format"
+  ],
+  "personality": "default"
+}
+
+package.json:
+{
+  "name": "rustline-ai",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "server": "node server.js",
+    "bot": "node bot.js",
+    "start": "npm-run-all --parallel server bot"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "groq-sdk": "^1.3.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  }
+}
+
+modelRouter.js:
+import dotenv from "dotenv";
+dotenv.config();
+
+import Groq from "groq-sdk";
+import { buildAdaptiveBrain } from "./aiBrain.js";
+import { loadFeedback } from "./feedbackManager.js";
+import { validateWeapons } from "./rustWeapons.js";
+
+const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+export async function callRustlineAI(userMessage) {
+  const brain = buildAdaptiveBrain();
+  const fb = loadFeedback();
+
+  const total = fb.good + fb.bad || 1;
+  const score = fb.good / total;
+
+  const temperature = score > 0.75 ? 1.0 : score < 0.40 ? 0.2 : 0.6;
+
+  const systemPrompt = `
+You are Rustline AI.
+Ultra Feedback Personality Engine Active.
+
+Personality: ${brain.personality}
+Accuracy Mode: ${brain.accuracyMode}
+Detail Level: ${brain.detailLevel}
+Architecture: ${brain.architecture}
+
+You must obey all feedback packets stored in memory.
+You must reinforce GOOD patterns.
+You must avoid BAD patterns.
+You must rewrite code strictly when rewrite_mode=strict.
+You must generate Rustline-compatible JS code.
+You must output long code as .txt (handled by bot.js).
+`;
+
+  const completion = await client.chat.completions.create({
+    model: "openai/gpt-oss-20b",
+    temperature,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage }
+    ]
+  });
+
+  let output = completion.choices[0].message.content;
+
+  return output;
+}
+feedbackManager:
+import fs from "fs";
+
+const FEEDBACK_PATH = "./aiFeedback.json";
+
+export function loadFeedback() {
+  if (!fs.existsSync(FEEDBACK_PATH)) {
+    return {
+      good: 0,
+      bad: 0,
+      packets: []
+    };
+  }
+
+  const data = JSON.parse(fs.readFileSync(FEEDBACK_PATH, "utf8"));
+
+  // SAFETY DEFAULTS
+  if (!Array.isArray(data.packets)) data.packets = [];
+  if (typeof data.good !== "number") data.good = 0;
+  if (typeof data.bad !== "number") data.bad = 0;
+
+  return data;
+}
+
+export function saveFeedback(data) {
+  fs.writeFileSync(FEEDBACK_PATH, JSON.stringify(data, null, 2));
+}
+
+export function addFeedbackPacket(packet) {
+  const data = loadFeedback();
+
+  if (packet.type === "GOOD") data.good++;
+  if (packet.type === "BAD") data.bad++;
+
+  data.packets.push({
+    ...packet,
+    timestamp: new Date().toISOString()
+  });
+
+  saveFeedback(data);
+}
+configManager.js:
+import fs from "fs";
+
+export function loadConfig() {
+  return JSON.parse(fs.readFileSync("./rustlineConfig.json", "utf8"));
+}
+
+export function saveConfig(config) {
+  fs.writeFileSync("./rustlineConfig.json", JSON.stringify(config, null, 2));
+}
+bot.js:
+// import dotenv from "dotenv";
+// dotenv.config();
+
+// import { Client, GatewayIntentBits, Events, AttachmentBuilder } from "discord.js";
+// import { callRustlineAI } from "./modelRouter.js";
+// import { addFeedbackPacket } from "./feedbackManager.js";
+
+// const client = new Client({
+//   intents: [
+//     GatewayIntentBits.Guilds,
+//     GatewayIntentBits.GuildMessages,
+//     GatewayIntentBits.MessageContent
+//   ]
+// });
+
+// function sendAsTextFile(channel, text, filename = "rustline_output.txt") {
+//   const buffer = Buffer.from(text, "utf-8");
+//   const file = new AttachmentBuilder(buffer, { name: filename });
+//   return channel.send({ files: [file] });
+// }
+
+// function shouldSendAsFile(text) {
+//   return text.length > 3500 || text.includes("```");
+// }
+
+// client.once(Events.ClientReady, () => {
+//   console.log(`Rustline Bot logged in as ${client.user.tag}`);
+// });
+
+// client.on(Events.MessageCreate, async (msg) => {
+//   if (msg.author.bot) return;
+
+//   const content = msg.content.trim();
+
+//   // ULTRA FEEDBACK PACKET PARSER
+//   if (content.startsWith("!good") || content.startsWith("!bad")) {
+//     const raw = content.replace("!good", "").replace("!bad", "").trim();
+
+//     try {
+//       const packet = parseUltraFeedbackPacket(raw);
+//       addFeedbackPacket(packet);
+
+//       return msg.reply(`Ultra feedback packet stored (${packet.type}).`);
+//     } catch (err) {
+//       console.error("Feedback parse error:", err);
+//       return msg.reply("Invalid feedback packet.");
+//     }
+//   }
+
+//   // AI COMMAND
+//   if (content.startsWith("!ai")) {
+//     const prompt = content.replace("!ai", "").trim();
+//     if (!prompt) return msg.reply("Give me something to work with.");
+
+//     try {
+//       const aiResponse = await callRustlineAI(prompt);
+
+//       if (shouldSendAsFile(aiResponse)) {
+//         await sendAsTextFile(msg.channel, aiResponse, "rustline_ai_output.txt");
+//       } else {
+//         await msg.channel.send(`**Rustline AI:**\n${aiResponse}`);
+//       }
+//     } catch (err) {
+//       console.error("AI error:", err);
+//       return msg.reply("AI crashed. Check logs.");
+//     }
+//   }
+// });
+
+// client.login(process.env.BOT_TOKEN);
+
+// // ULTRA FEEDBACK PACKET PARSER
+// function parseUltraFeedbackPacket(raw) {
+//   const cleaned = raw
+//     .replace("RUSTLINE_FEEDBACK_PACKET", "")
+//     .replace("{", "")
+//     .replace("}", "")
+//     .trim();
+
+//   const lines = cleaned.split("\n").map((l) => l.trim()).filter(Boolean);
+
+//   const packet = {};
+
+//   for (const line of lines) {
+//     if (line.startsWith("type:")) packet.type = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("reason:")) packet.reason = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("severity:")) packet.severity = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("strengths:")) packet.strengths = extractList(line);
+//     if (line.startsWith("faults:")) packet.faults = extractList(line);
+//     if (line.startsWith("avoid:")) packet.avoid = extractList(line);
+//     if (line.startsWith("patterns:")) packet.patterns = extractList(line);
+//     if (line.startsWith("memory_tags:")) packet.memory_tags = extractList(line);
+//     if (line.startsWith("fix:")) packet.fix = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("example:")) packet.example = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("style:")) packet.style = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("architecture:")) packet.architecture = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("rewrite_mode:")) packet.rewrite_mode = line.split(":")[1].replace(";", "").trim();
+//     if (line.startsWith("weight:")) packet.weight = parseFloat(line.split(":")[1].replace(";", "").trim());
+//   }
+
+//   return packet;
+// }
+
+// function extractList(line) {
+//   const inside = line.substring(line.indexOf("[") + 1, line.indexOf("]"));
+//   return inside.split(",").map((x) => x.trim()).filter(Boolean);
+// }
+import dotenv from "dotenv";
+dotenv.config();
+
+import {
+  Client,
+  GatewayIntentBits,
+  Events,
+  AttachmentBuilder
+} from "discord.js";
+
+import { callRustlineAI } from "./modelRouter.js";
+import { addFeedbackPacket } from "./feedbackManager.js";
+
+// Per-thread chat memory
+const activeChats = new Map();
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions
+  ]
+});
+
+// ----------------------
+// File Output System
+// ----------------------
+function sendAsTextFile(channel, text, filename = "rustline_output.txt") {
+  const buffer = Buffer.from(text, "utf-8");
+  const file = new AttachmentBuilder(buffer, { name: filename });
+  return channel.send({ files: [file] });
+}
+
+function shouldSendAsFile(text) {
+  return text.length > 3500 || text.includes("```");
+}
+
+// ----------------------
+// Bot Ready
+// ----------------------
+client.once(Events.ClientReady, () => {
+  console.log(`Rustline Bot logged in as ${client.user.tag}`);
+});
+
+// ----------------------
+// Message Handler
+// ----------------------
+// ----------------------
+// CHAT SYSTEM: !chat command
+// ----------------------
+client.on(Events.MessageCreate, async (msg) => {
+  if (msg.author.bot) return;
+
+  const content = msg.content.trim();
+
+  // Create a chat thread
+  if (content.startsWith("!chat")) {
+    try {
+      const thread = await msg.channel.threads.create({
+        name: `chat-${msg.author.username}`,
+        autoArchiveDuration: 60,
+        reason: "Rustline AI chat session"
+      });
+
+      activeChats.set(thread.id, []); // create memory store
+
+      await thread.send(
+        `Rustline AI chat started for <@${msg.author.id}>.  
+Type normally — no !ai needed.`
+      );
+
+      return;
+    } catch (err) {
+      console.error("Chat thread error:", err);
+      return msg.reply("Failed to create chat thread.");
+    }
+  }
+});
+
+// Reaction-Based Feedback
+// ----------------------
+client.on(Events.MessageReactionAdd, async (reaction, user) => {
+  if (user.bot) return;
+
+  const msg = reaction.message;
+
+  if (!msg.content.startsWith("Rustline AI")) return;
+
+  const aiText = msg.content.replace("Rustline AI:", "").trim();
+
+  // GOOD
+  if (reaction.emoji.name === "👍") {
+    const packet = {
+      type: "GOOD",
+      reason: "user marked response as good",
+      strengths: ["accepted"],
+      reinforce: {
+        style: "current",
+        patterns: ["continue"],
+        architecture: "rustline_js"
+      },
+      memory_tags: ["good_response"],
+      weight: +1.0
+    };
+
+    addFeedbackPacket(packet);
+    return msg.channel.send("Stored GOOD feedback.");
+  }
+
+  // BAD
+  if (reaction.emoji.name === "👎") {
+    const packet = {
+      type: "BAD",
+      reason: "user marked response as bad",
+      severity: "medium",
+      faults: ["response rejected"],
+      corrections: {
+        fix: "improve accuracy and follow Rustline architecture",
+        avoid: ["previous patterns"],
+        rewrite_mode: "strict"
+      },
+      example: "Rewrite response with correct Rustline JS format.",
+      memory_tags: ["bad_response", "strict_mode"],
+      weight: -1.0
+    };
+
+    addFeedbackPacket(packet);
+    return msg.channel.send("Stored BAD feedback.");
+  }
+});
+
+// ----------------------
+// Chat Thread Cleanup
+// ----------------------
+client.on(Events.ThreadDelete, (thread) => {
+  if (activeChats.has(thread.id)) {
+    activeChats.delete(thread.id);
+  }
+});
+
+// ----------------------
+// Ultra Feedback Packet Parser
+// ----------------------
+function parseUltraFeedbackPacket(raw) {
+  const cleaned = raw
+    .replace("RUSTLINE_FEEDBACK_PACKET", "")
+    .replace("{", "")
+    .replace("}", "")
+    .trim();
+
+  const lines = cleaned.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  const packet = {};
+
+  for (const line of lines) {
+    if (line.startsWith("type:")) packet.type = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("reason:")) packet.reason = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("severity:")) packet.severity = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("strengths:")) packet.strengths = extractList(line);
+    if (line.startsWith("faults:")) packet.faults = extractList(line);
+    if (line.startsWith("avoid:")) packet.avoid = extractList(line);
+    if (line.startsWith("patterns:")) packet.patterns = extractList(line);
+    if (line.startsWith("memory_tags:")) packet.memory_tags = extractList(line);
+    if (line.startsWith("fix:")) packet.fix = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("example:")) packet.example = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("style:")) packet.style = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("architecture:")) packet.architecture = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("rewrite_mode:")) packet.rewrite_mode = line.split(":")[1].replace(";", "").trim();
+    if (line.startsWith("weight:")) packet.weight = parseFloat(line.split(":")[1].replace(";", "").trim());
+  }
+
+  return packet;
+}
+
+function extractList(line) {
+  const inside = line.substring(line.indexOf("[") + 1, line.indexOf("]"));
+  return inside.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+client.login(process.env.BOT_TOKEN);
+
+aiFeedback.json:
+{
+  "good": 1,
+  "bad": 4,
+  "history": [
+    {
+      "type": "bad",
+      "reason": "wrong architecture",
+      "severity": "medium",
+      "fix": "rewrite using Rustline bot.js format",
+      "notes": "too generic discord bot code",
+      "time": "2026-07-17T21:27:38.058Z"
+    }
+  ],
+  "packets": [
+    {
+      "type": "BAD",
+      "reason": "\"wrong architecture for Rustline bot\"",
+      "severity": "high",
+      "faults": [
+        "faults: ["
+      ],
+      "fix": "\"generate JS code that plugs directly into Rustline bot.js using msg.reply or .txt output\"",
+      "avoid": [
+        "avoid: ["
+      ],
+      "rewrite_mode": "strict",
+      "example": "\"Rustline AI should output a JS snippet that can be executed via !ai, not a modular slash command file.\"",
+      "memory_tags": [
+        "memory_tags: ["
+      ],
+      "weight": -1,
+      "timestamp": "2026-07-17T21:40:52.380Z"
+    },
+    {
+      "type": "BAD",
+      "reason": "\"incorrect architecture for Rustline bot\"",
+      "severity": "high",
+      "faults": [
+        "faults: ["
+      ],
+      "fix": "\"generate JS code that Rustline can execute directly via !ai, using msg.reply or .txt output\"",
+      "avoid": [
+        "avoid: ["
+      ],
+      "rewrite_mode": "strict",
+      "example": "\"Rustline AI should output a JS snippet that can be run inside bot.js, not a modular slash command file.\"",
+      "memory_tags": [
+        "memory_tags: ["
+      ],
+      "weight": -1,
+      "timestamp": "2026-07-17T21:42:15.613Z"
+    },
+    {
+      "type": "BAD",
+      "reason": "\"incorrect Rust Console Edition logic and incorrect Rustline architecture\"",
+      "severity": "critical",
+      "faults": [
+        "faults: ["
+      ],
+      "fix": "\"generate a Rustline-compatible JS snippet that sends a valid WebRCON JSON command using ws.send(JSON.stringify({ Identifier, Message, Name ))\"",
+      "avoid": [
+        "avoid: ["
+      ],
+      "rewrite_mode": "strict",
+      "example": "\"Use ws.send(JSON.stringify({ Identifier",
+      "memory_tags": [
+        "memory_tags: ["
+      ],
+      "weight": -1,
+      "timestamp": "2026-07-17T21:47:14.411Z"
+    },
+    {
+      "type": "GOOD",
+      "reason": "user marked response as good",
+      "strengths": [
+        "accepted"
+      ],
+      "reinforce": {
+        "style": "current",
+        "patterns": [
+          "continue"
+        ],
+        "architecture": "rustline_js"
+      },
+      "memory_tags": [
+        "good_response"
+      ],
+      "weight": 1,
+      "timestamp": "2026-07-17T21:58:25.997Z"
+    }
+  ]
+}
+
+aiBrain.js:
+import { loadFeedback } from "./feedbackManager.js";
+
+export function buildAdaptiveBrain() {
+  const fb = loadFeedback();
+
+  // SAFETY DEFAULTS
+  const good = fb.good || 0;
+  const bad = fb.bad || 0;
+  const packets = Array.isArray(fb.packets) ? fb.packets : [];
+
+  const total = good + bad || 1;
+  const score = good / total;
+
+  const last = packets.length > 0 ? packets[packets.length - 1] : null;
+
+  let personality = "balanced_coder";
+  let accuracyMode = "normal";
+  let detailLevel = "medium";
+  let architecture = "rustline_js";
+
+  // Personality based on score
+  if (score > 0.75) personality = "confident_senior_dev";
+  if (score < 0.40) personality = "strict_accuracy_dev";
+
+  // Apply last packet rules safely
+  if (last?.rewrite_mode === "strict") accuracyMode = "strict";
+  if (last?.rewrite_mode === "full") detailLevel = "high";
+  if (last?.architecture) architecture = last.architecture;
+
+  return { personality, accuracyMode, detailLevel, architecture };
+}
+.env has token and api keys
+
+src/behaviors.json:
+{
+  "default": {
+    "id": "default",
+    "name": "Rustline Default",
+    "system_prompt": "You are Rustline AI. Be helpful, direct, and fast.",
+    "routing": {
+      "default_model": "openai:gpt-4.1-mini"
+    }
+  },
+  "rust-admin": {
+    "id": "rust-admin",
+    "name": "Rust Server Admin",
+    "system_prompt": "You are Rustline AI, a Rust server admin assistant. Be technical and opinionated.",
+    "routing": {
+      "default_model": "anthropic:claude-3-opus"
+    }
+  }
+}
+src/routes/config.js:
+export const AI_CONFIG = {
+  aiName: "Rustline AI",
+  personalityPrefix: "Alright, here’s the Rustline take:\n",
+
+  personality: `
+You are Rustline AI.
+Direct, fast, helpful, slightly chaotic, technical when needed.
+You help with Rust servers, bots, kits, automation, and anything the user builds.
+`,
+
+  behaviour: {
+    tone: "casual",
+    style: "direct",
+    allowDarkHumor: true,
+    creativity: 0.7
+  }
+};
+src/routes/messages.js:
+import express from "express";
+import { createSession, getSession, addMessage } from "./sessionStore.js";
+import { AI_CONFIG } from "./config.js";
+
+
+const router = express.Router();
+
+router.post("/", async (req, res) => {
+  let { sessionId, content } = req.body;
+
+  if (!sessionId) {
+    const newSession = createSession();
+    sessionId = newSession.id;
+  }
+
+  const session = getSession(sessionId);
+
+  addMessage(sessionId, { role: "user", content });
+
+  const prompt = [
+    { role: "system", content: AI_CONFIG.personality },
+    ...session.messages
+  ];
+
+  const replyText = await callModel(prompt);
+
+  const reply = { role: "assistant", content: replyText };
+  addMessage(sessionId, reply);
+
+  res.json({ sessionId, reply });
+});
+
+export default router;
+sessions.js:
+import express from "express";
+import { createSession } from "./sessionStore.js";
+
+const router = express.Router();
+
+router.post("/", (req, res) => {
+  const session = createSession();
+  res.json(session);
+});
+
+export default router;
+sessionStore.js:
+const sessions = {};
+
+function newId() {
+  return Math.random().toString(36).slice(2);
+}
+
+export function createSession() {
+  const id = newId();
+  sessions[id] = { id, messages: [] };
+  return sessions[id];
+}
+
+export function getSession(id) {
+  return sessions[id];
+}
+
+export function addMessage(id, msg) {
+  sessions[id].messages.push(msg);
+}
