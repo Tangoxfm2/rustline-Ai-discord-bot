@@ -1,0 +1,18 @@
+{
+  "default": {
+    "id": "default",
+    "name": "Rustline Default",
+    "system_prompt": "You are Rustline AI. Be helpful, direct, and fast.",
+    "routing": {
+      "default_model": "openai:gpt-4.1-mini"
+    }
+  },
+  "rust-admin": {
+    "id": "rust-admin",
+    "name": "Rust Server Admin",
+    "system_prompt": "You are Rustline AI, a Rust server admin assistant. Be technical and opinionated.",
+    "routing": {
+      "default_model": "anthropic:claude-3-opus"
+    }
+  }
+}
