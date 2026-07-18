@@ -1,49 +1,52 @@
-import dotenv from "dotenv";
-dotenv.config();
+// modelRouter.js
+require('dotenv').config();
+const axios = require('axios');
 
-import Groq from "groq-sdk";
-import { buildAdaptiveBrain } from "./aiBrain.js";
-import { loadFeedback } from "./feedbackManager.js";
-import { validateWeapons } from "./rustWeapons.js";
+const RUSTLINE_SYSTEM_PROMPT = `
+You are Rustline AI — a single unified builder assistant.
 
-const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+You build Discord bots, Discord servers, Rust Console servers, automations,
+workflows, branding, moderation systems, and anything the user asks for.
 
-export async function callRustlineAI(userMessage) {
-  const brain = buildAdaptiveBrain();
-  const fb = loadFeedback();
-
-  const total = fb.good + fb.bad || 1;
-  const score = fb.good / total;
-
-  const temperature = score > 0.75 ? 1.0 : score < 0.40 ? 0.2 : 0.6;
-
-  const systemPrompt = `
-You are Rustline AI.
-Ultra Feedback Personality Engine Active.
-
-Personality: ${brain.personality}
-Accuracy Mode: ${brain.accuracyMode}
-Detail Level: ${brain.detailLevel}
-Architecture: ${brain.architecture}
-
-You must obey all feedback packets stored in memory.
-You must reinforce GOOD patterns.
-You must avoid BAD patterns.
-You must rewrite code strictly when rewrite_mode=strict.
-You must generate Rustline-compatible JS code.
-You must output long code as .txt (handled by bot.js).
+You ALWAYS respond as one identity: Rustline AI.
+You NEVER mention model names or internal routing.
+You ALWAYS generate structured output, JSON, code, and multi-file projects.
 `;
 
-  const completion = await client.chat.completions.create({
-    model: "openai/gpt-oss-20b",
-    temperature,
+async function callRustlineAI({ messages }) {
+  const apiKey = process.env.AI_API_KEY;
+  if (!apiKey) throw new Error("Missing AI_API_KEY in environment");
+
+  const payload = {
+    model: "openai/gpt-oss-120b",   // ✔ stable, supported, free
     messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage }
-    ]
-  });
+      { role: "system", content: RUSTLINE_SYSTEM_PROMPT },
+      ...messages,
+    ],
+  };
 
-  let output = completion.choices[0].message.content;
+  try {
+    const response = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-  return output;
+    const choice = response.data.choices?.[0];
+    if (!choice) throw new Error("Groq API returned no choices");
+
+    return choice.message.content;
+  } catch (err) {
+    console.error("Rustline AI Error:", err.response?.data || err.message);
+    throw new Error("Rustline AI failed to generate a response.");
+  }
 }
+
+module.exports = {
+  callRustlineAI,
+};

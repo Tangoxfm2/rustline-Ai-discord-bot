@@ -9,7 +9,7 @@ if (envResult.error) {
 } else {
   console.log("✅ .env loaded:", envResult.parsed);
 }
-if (!process.env.GROQ_API_KEY || !process.env.DSEEK_API_KEY) {
+if (!process.env.AI_API_KEY) {
   console.warn("⚠️ WARNING: Missing AI API keys. Rustline AI will not respond.");
 }
 
